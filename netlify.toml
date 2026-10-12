@@ -1,0 +1,46 @@
+[build]
+  # Sitio 100% estático: no hay build step, se publica la carpeta raíz.
+  publish = "."
+  # command = ""   # (descomenta si algún día agregas un build)
+
+# El service worker nunca debe cachearse por el navegador,
+# así las actualizaciones de la PWA se aplican siempre.
+[[headers]]
+  for = "/service-worker.js"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate"
+
+[[headers]]
+  for = "/manifest.webmanifest"
+  [headers.values]
+    Cache-Control = "no-cache"
+    Content-Type = "application/manifest+json"
+
+# Permite que TUS apps (u otros sitios) no tengan problemas al cargar
+# assets de este sitio dentro de un iframe.
+[[headers]]
+  for = "/icons/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/css/*"
+  [headers.values]
+    Cache-Control = "public, max-age=3600"
+
+[[headers]]
+  for = "/js/*"
+  [headers.values]
+    Cache-Control = "public, max-age=3600"
+
+# Las herramientas de desarrollo (tests, generador de íconos) no se publican.
+[[redirects]]
+  from = "/scripts/*"
+  to = "/index.html"
+  status = 404
+
+# Fallback de app shell (SPA): cualquier ruta desconocida devuelve index.html.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

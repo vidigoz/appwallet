@@ -1,0 +1,12 @@
+# macOS
+.DS_Store
+
+# El sitio es 100% estático: no hay build ni dependencias.
+# Estas entradas existen solo por si algún día se agregan.
+node_modules/
+dist/
+.netlify/
+
+# Archivos temporales de las pruebas locales
+*.log
+.tmp/
