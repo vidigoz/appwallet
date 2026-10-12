@@ -25,6 +25,11 @@ function testPure() {
   check('makeApp sanea el registro', a.name === 'Hola' && a.url === 'https://hola.netlify.app/' && a.accent === '#abcdef' && a.emoji === '🚀');
   check('makeApp aplica acento por defecto', makeApp({ name: 'x', url: 'x.netlify.app', accent: 'rojo' }).accent === '#6366f1');
   check('makeApp genera id y fecha', Boolean(a.id) && Number.isFinite(a.createdAt));
+  check(
+    'makeApp activa la vista previa por defecto',
+    makeApp({ name: 'x', url: 'x.netlify.app' }).preview === true &&
+      makeApp({ name: 'x', url: 'x.netlify.app', preview: false }).preview === false
+  );
 
   check('parseBackup acepta la envoltura', parseBackup('{"apps":[{"name":"A","url":"a.netlify.app"}]}').length === 1);
   check('parseBackup acepta array plano', parseBackup('[{"name":"B","url":"b.netlify.app"}]')[0].name === 'B');
@@ -45,9 +50,36 @@ async function testViewer() {
 
   const card0 = all('.card')[0];
   const expectedUrl = card0.dataset.previewUrl;
+
+  // "Abrir en pestaña nueva": botón propio en todas las tarjetas.
+  check('cada tarjeta ofrece abrir en pestaña nueva', all('.card__external').length === 3, all('.card__external').length);
+  const opened = [];
+  const realOpen = window.open;
+  window.open = (url, target, features) => {
+    opened.push({ url, target, features });
+    return null;
+  };
+  all('.card')[1].querySelector('.card__external').click();
+  await sleep(80);
+  check(
+    'el botón abre la app en pestaña nueva',
+    opened.length === 1 && opened[0].url === all('.card')[1].dataset.previewUrl && opened[0].target === '_blank',
+    JSON.stringify(opened)
+  );
+  check('abrir en pestaña nueva no abre el visor', $('#viewer').hidden);
+
   card0.querySelector('.card__more').click();
   await sleep(80);
   check('el menú de la tarjeta se abre', !card0.querySelector('.card__menu').hidden);
+
+  card0.querySelector('.card__menu [data-action="external"]').click();
+  await sleep(80);
+  check('el menú ofrece abrir en pestaña nueva', opened.length === 2 && opened[1].url === expectedUrl, JSON.stringify(opened));
+  check('el menú se cierra al abrir en pestaña nueva', card0.querySelector('.card__menu').hidden);
+  window.open = realOpen;
+
+  card0.querySelector('.card__more').click();
+  await sleep(80);
 
   card0.querySelector('.card__menu [data-action="open"]').click();
   await sleep(400);
@@ -77,6 +109,68 @@ async function testViewer() {
   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
   await sleep(500);
   check('Esc cierra el visor', viewer.hidden);
+}
+
+/* --------------- UI: tarjetas sin vista previa (solo ícono) --------------- */
+async function testIconOnly() {
+  const form = $('#editorForm');
+  const card = all('.card')[0];
+  const url = card.dataset.previewUrl;
+
+  card.querySelector('.card__more').click();
+  await sleep(80);
+  card.querySelector('.card__menu [data-action="preview"]').click();
+  await sleep(300);
+
+  check('el menú desactiva la vista previa', card.classList.contains('card--preview-off'), card.className);
+  check(
+    'sin vista previa el iframe no carga la web',
+    card.querySelector('.card__iframe').getAttribute('src') === 'about:blank',
+    card.querySelector('.card__iframe').getAttribute('src')
+  );
+  check(
+    'el ícono queda como fondo de la tarjeta',
+    getComputedStyle(card.querySelector('.card__iframe')).display === 'none' &&
+      card.querySelector('.card__fallback-emoji').textContent === '🧪'
+  );
+  check(
+    'se guarda el estado sin vista previa',
+    JSON.parse(localStorage.getItem('appwallet.apps.v1')).some((a) => a.url === url && a.preview === false)
+  );
+  check(
+    'el menú pasa a ofrecer volver a intentarlo',
+    card.querySelector('.card__menu [data-action="preview"]').textContent === 'Intentar vista previa',
+    card.querySelector('.card__menu [data-action="preview"]').textContent
+  );
+
+  // El editor refleja el estado guardado.
+  card.querySelector('.card__more').click();
+  await sleep(80);
+  card.querySelector('.card__menu [data-action="edit"]').click();
+  await sleep(280);
+  check('el editor muestra la vista previa desactivada', form.elements.preview.checked === false);
+  document.querySelector('#editorModal [data-close]').click();
+  await sleep(220);
+
+  // Al abrir, el visor avisa al instante (sin esperar a un marco en blanco).
+  card.click();
+  await sleep(400);
+  check(
+    'el visor avisa al instante si la web no se deja incrustar',
+    !$('#viewer').hidden && !$('#viewerBlocked').hidden && $('#viewerLoader').classList.contains('is-hidden')
+  );
+  $('#viewerBack').click();
+  await sleep(700);
+  check('el visor se cierra tras el aviso', $('#viewer').hidden);
+
+  // Y se puede volver a activar la vista previa desde el menú.
+  card.querySelector('.card__more').click();
+  await sleep(80);
+  card.querySelector('.card__menu [data-action="preview"]').click();
+  await sleep(300);
+  check('se puede volver a activar la vista previa', !card.classList.contains('card--preview-off'));
+  for (let i = 0; i < 20 && card.querySelector('.card__iframe').getAttribute('src') === 'about:blank'; i += 1) await sleep(100);
+  check('la vista previa vuelve a cargar', card.querySelector('.card__iframe').getAttribute('src') === url, card.querySelector('.card__iframe').getAttribute('src'));
 }
 
 /* --------------------------- UI: editor --------------------------- */
@@ -186,6 +280,7 @@ async function main() {
   testPure();
   try {
     await testViewer();
+    await testIconOnly();
     await testEditor();
     await testSearch();
     await testData();

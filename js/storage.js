@@ -42,6 +42,10 @@ export function makeApp(data) {
     url: normalizeUrl(data?.url),
     accent: /^#[0-9a-f]{6}$/.test(accent) ? accent : '#6366f1',
     emoji: String(data?.emoji || DEFAULT_EMOJI).trim().slice(0, 4) || DEFAULT_EMOJI,
+    // false = esa web no permite mostrarse dentro de un iframe (X-Frame-Options o
+    // CSP frame-ancestors). En ese caso la tarjeta se queda con su ícono en vez
+    // de enseñar un rectángulo en blanco.
+    preview: data?.preview !== false,
     createdAt: Number(data?.createdAt) || Date.now(),
   };
 }

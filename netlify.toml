@@ -1,6 +1,8 @@
 [build]
   # Sitio 100% estático: no hay build step, se publica la carpeta raíz.
   publish = "."
+  # Funciones (frame-check: comprueba si una web se deja incrustar en un iframe).
+  functions = "netlify/functions"
   # command = ""   # (descomenta si algún día agregas un build)
 
 # El service worker nunca debe cachearse por el navegador,

@@ -111,11 +111,71 @@ netlify deploy --dir=. --prod
 
 ## ⚠️ Notas sobre los iframes
 
+La cartera abre cada app dentro de un `<iframe>`, no en una pestaña nueva: así
+funcionan la **vista previa** de las tarjetas y el **visor** con barra, botón
+*volver* y recarga. Un `<iframe>` es un documento *anidado* dentro del nuestro, y
+los navegadores tratan ese caso de forma distinta al de una pestaña normal: una
+web puede **permitir o prohibir** ser enmarcada (con `X-Frame-Options` o CSP
+`frame-ancestors`), pero no puede impedir que la abras en su propia pestaña. Por
+eso el botón **abrir en pestaña externa** funciona incluso con `DENY`.
+
 Algunas webs envían `X-Frame-Options` o `Content-Security-Policy:
-frame-ancestors` y **no permiten** mostrarse dentro de otra página. Tus propias
-apps de Netlify no lo hacen por defecto, así que se verán sin problema. Si
-alguna web lo bloquea, el visor lo detecta y te ofrece abrirla en una pestaña
-externa (el preview de la tarjeta mostrará la página en blanco del navegador).
+frame-ancestors` y **no permiten** mostrarse dentro de otra página. Netlify **no**
+añade esas cabeceras por defecto, pero es fácil que estén en el `netlify.toml`
+de tus propios sitios (es un header que se copia mucho como "buena práctica").
+Si es el caso, el navegador muestra un error en consola del tipo:
+
+```text
+Refused to display 'https://tu-app.netlify.app/' in a frame because it set
+'X-Frame-Options' to 'sameorigin'.
+```
+
+**En ese caso la tarjeta se verá en blanco**: el iframe es de otro origen, así
+que la cartera no puede leer lo que pasó dentro. El navegador **no puede
+detectarlo desde la página**: no se pueden leer las cabeceras de otro origen
+(CORS) y, además, Chrome dispara el evento `load` del iframe aunque la web se
+bloquee. Por eso la comprobación se hace en el servidor, con la función de
+Netlify `netlify/functions/frame-check.mjs`:
+
+```text
+GET /.netlify/functions/frame-check?url=https://tu-app.netlify.app
+→ { "embeddable": false, "reason": "x-frame-options: SAMEORIGIN" }
+```
+
+Con eso la cartera se comporta así:
+
+| Situación | Qué hace la cartera |
+| --- | --- |
+| La web **permite** iframes | Vista previa normal en la tarjeta y en el visor |
+| La web **bloquea** iframes | La tarjeta deja su **ícono como fondo** (sin rectángulo en blanco) y el visor avisa al instante |
+
+Y lo puedes cambiar a mano cuando quieras:
+
+- En la tarjeta: **⋮ → Mostrar solo el ícono** (y *Intentar vista previa* para volver atrás).
+- En el editor: la casilla **Vista previa dentro de la tarjeta**.
+- En el visor: **Reintentar** vuelve a preguntar al servidor, así que si arreglas
+  la web, la vista previa vuelve sola.
+- Automático: al abrir la cartera se comprueba cada app una vez (en segundo
+  plano) y las que bloquean pasan a solo-ícono. Lo que decidas a mano nunca se
+  sobrescribe.
+
+En todos los casos tienes el botón **abrir en pestaña nueva**: en la esquina de
+cada tarjeta (↗), en su menú (⋮) y en el visor. Ese botón funciona incluso con
+`X-Frame-Options: DENY`, porque el bloqueo solo se aplica a los iframes.
+
+**Cómo arreglarlo en la app incrustada** (no en la cartera): quita su
+`X-Frame-Options` de `netlify.toml` o `_headers` y, si quieres mantener la
+protección, usa CSP `frame-ancestors` (que sí acepta varios orígenes):
+
+```toml
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Content-Security-Policy = "frame-ancestors 'self' https://*.netlify.app"
+```
+
+Recuerda que las cabeceras las aplica Netlify en el **deploy**: hay que hacer
+`git push` y esperar el redeploy para que el cambio surta efecto.
 
 Como el iframe es de otro origen, la cartera no puede leer su contenido: por eso
 el botón **volver** es propio (no se puede usar el "atrás" del navegador dentro

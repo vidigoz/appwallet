@@ -293,6 +293,8 @@ img { display: block; max-width: 100%; }
   transition: opacity 0.45s var(--ease);
 }
 .card__iframe.is-ready { opacity: 1; }
+/* La web no permite mostrarse dentro de otra: la tarjeta se queda con su ícono. */
+.card--preview-off .card__iframe { display: none; }
 .card__glare {
   position: absolute;
   inset: 0;
@@ -343,19 +345,8 @@ img { display: block; max-width: 100%; }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.card__open {
-  display: grid;
-  place-items: center;
-  width: 34px;
-  height: 34px;
-  flex: none;
-  border-radius: 50%;
-  color: var(--text-dim);
-  background: var(--surface);
-  transition: transform 0.28s var(--ease), background 0.28s var(--ease), color 0.28s var(--ease);
-}
-.card:hover .card__open { transform: translateX(3px); background: var(--accent); color: #fff; }
-.card__more {
+.card__more,
+.card__external {
   display: grid;
   place-items: center;
   width: 34px;
@@ -370,6 +361,13 @@ img { display: block; max-width: 100%; }
 }
 .card__more:hover { background: var(--surface-2); color: var(--text); }
 .card__more .ico { width: 18px; height: 18px; fill: currentColor; stroke: none; }
+/* Abrir en pestaña nueva: siempre visible en la tarjeta, aunque la web bloquee el iframe. */
+.card__external { color: var(--text-dim); }
+.card__external .ico { width: 17px; height: 17px; }
+.card__external:hover {
+  background: color-mix(in srgb, var(--accent) 26%, transparent);
+  color: #fff;
+}
 
 .card__menu {
   position: absolute;
@@ -498,6 +496,19 @@ img { display: block; max-width: 100%; }
   box-shadow: 0 0 0 4px var(--accent-soft);
 }
 .field--emoji input { text-align: center; font-size: 20px; }
+.field--check {
+  grid-template-columns: 20px 1fr;
+  align-items: start;
+  gap: 11px;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  cursor: pointer;
+}
+.field--check input { width: 18px; height: 18px; margin: 1px 0 0; accent-color: var(--accent); cursor: pointer; }
+.field--check > span { display: grid; gap: 3px; }
+.field__hint { font-size: 12px; line-height: 1.45; color: var(--text-mute); }
 .swatches { display: flex; flex-wrap: wrap; gap: 10px; }
 .swatches button {
   width: 34px;

@@ -10,7 +10,7 @@
 import { PREVIEW_H, PREVIEW_W } from './config.js';
 import { hostOf } from './storage.js';
 
-export function createCardView({ container, template, onOpen, onEdit, onDelete }) {
+export function createCardView({ container, template, onOpen, onEdit, onDelete, onExternal, onTogglePreview }) {
   /** @type {Map<string, HTMLElement>} */
   const cards = new Map();
   /** @type {Map<string, object>} */
@@ -45,10 +45,25 @@ export function createCardView({ container, template, onOpen, onEdit, onDelete }
     openMenu = null;
   }
 
-  /** Asigna el src del iframe de preview y lo muestra al terminar de cargar. */
+  /**
+   * Asigna el src del iframe de preview y lo muestra al terminar de cargar.
+   * Si la app está marcada sin vista previa (webs que no permiten iframes) no se
+   * carga nada: la tarjeta se queda con su ícono de fondo.
+   */
   function loadPreview(cardEl, app) {
     const iframe = cardEl.querySelector('.card__iframe');
-    if (!iframe || iframe.dataset.src === app.url) return;
+    if (!iframe) return;
+
+    if (app.preview === false) {
+      if (iframe.dataset.src) {
+        delete iframe.dataset.src;
+        iframe.classList.remove('is-ready');
+        iframe.src = 'about:blank';
+      }
+      return;
+    }
+
+    if (iframe.dataset.src === app.url) return;
     iframe.dataset.src = app.url;
     iframe.classList.remove('is-ready');
     iframe.src = app.url;
@@ -72,7 +87,11 @@ export function createCardView({ container, template, onOpen, onEdit, onDelete }
 
     const iframe = el.querySelector('.card__iframe');
     iframe.title = `Vista previa de ${app.name}`;
-    if (iframe.dataset.src && iframe.dataset.src !== app.url) loadPreview(el, app);
+    el.classList.toggle('card--preview-off', app.preview === false);
+    el.querySelector('.card__menu [data-action="preview"]').textContent =
+      app.preview === false ? 'Intentar vista previa' : 'Mostrar solo el ícono';
+    if (app.preview === false) loadPreview(el, app);
+    else if (iframe.dataset.src && iframe.dataset.src !== app.url) loadPreview(el, app);
   }
 
   function buildCard(app) {
@@ -86,8 +105,21 @@ export function createCardView({ container, template, onOpen, onEdit, onDelete }
     iframe.style.height = `${PREVIEW_H}px`;
 
     el.addEventListener('click', (event) => {
-      if (event.target.closest('.card__more') || event.target.closest('.card__menu')) return;
+      if (
+        event.target.closest('.card__more') ||
+        event.target.closest('.card__menu') ||
+        event.target.closest('.card__external')
+      ) {
+        return;
+      }
       onOpen(byId.get(el.dataset.id));
+    });
+
+    // Abrir en pestaña nueva: disponible en todas las tarjetas, se abran o no
+    // dentro de un iframe (así funciona hasta con las webs que lo bloquean).
+    el.querySelector('.card__external').addEventListener('click', (event) => {
+      event.stopPropagation();
+      onExternal(byId.get(el.dataset.id));
     });
 
     el.addEventListener('keydown', (event) => {
@@ -114,6 +146,8 @@ export function createCardView({ container, template, onOpen, onEdit, onDelete }
       const app = byId.get(el.dataset.id);
       closeMenus();
       if (action === 'open') onOpen(app);
+      if (action === 'external') onExternal(app);
+      if (action === 'preview') onTogglePreview(app);
       if (action === 'edit') onEdit(app);
       if (action === 'delete') onDelete(app);
     });

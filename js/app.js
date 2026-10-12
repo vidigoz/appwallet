@@ -68,11 +68,15 @@ let viewerTimer = null;
 let progressTimer = null;
 let toastTimer = null;
 let deferredInstall = null;
+/** Apps cuya cabecera de frames ya comprobamos en esta sesión. */
+const framingChecked = new Set();
 
 const cardView = createCardView({
   container: els.grid,
   template: els.cardTemplate,
   onOpen: openViewer,
+  onExternal: openAppExternally,
+  onTogglePreview: togglePreview,
   onEdit: (app) => openEditor(app),
   onDelete: confirmDelete,
 });
@@ -135,14 +139,80 @@ function persist() {
 }
 
 function upsertApp(data) {
+  let app = null;
   if (editingId) {
     const index = apps.findIndex((a) => a.id === editingId);
-    if (index !== -1) apps[index] = makeApp({ ...data, id: editingId, createdAt: apps[index].createdAt });
+    if (index !== -1) {
+      app = makeApp({ ...data, id: editingId, createdAt: apps[index].createdAt });
+      apps[index] = app;
+    }
   } else {
-    apps = [makeApp(data), ...apps];
+    app = makeApp(data);
+    apps = [app, ...apps];
   }
   persist();
   renderWallet();
+  return app;
+}
+
+/**
+ * Activa o desactiva la vista previa de una app.
+ * Las webs que no permiten iframes se quedan con su ícono en la tarjeta.
+ */
+function setPreview(id, preview) {
+  const index = apps.findIndex((a) => a.id === id);
+  if (index === -1) return;
+  apps[index] = makeApp({ ...apps[index], preview });
+  persist();
+  renderWallet();
+}
+
+function togglePreview(app) {
+  if (!app) return;
+  const next = app.preview === false;
+  setPreview(app.id, next);
+  showToast(next ? 'Vista previa activada' : 'Solo el ícono (sin vista previa)');
+}
+
+/**
+ * Pregunta a la función de Netlify si una web se deja mostrar dentro de un iframe.
+ * Devuelve true/false, o null si no pudimos comprobarlo (sin función, sin red…).
+ * El navegador no puede saberlo por su cuenta: X-Frame-Options solo lo aplica la
+ * web destino, así que la comprobación se hace en el servidor.
+ */
+async function probeFraming(url) {
+  if (!url) return null;
+  try {
+    const res = await fetch(`/.netlify/functions/frame-check?url=${encodeURIComponent(url)}`, { cache: 'no-store' });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return typeof data?.embeddable === 'boolean' ? data.embeddable : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Si al guardar descubrimos que la web bloquea el iframe, la tarjeta pasa a solo-ícono. */
+async function verifyFraming(app) {
+  const embeddable = await probeFraming(app?.url);
+  if (embeddable !== false) return;
+  if (!apps.some((a) => a.id === app.id && a.preview !== false)) return;
+  setPreview(app.id, false);
+  showToast('🔒 Esa web no permite incrustarse: la tarjeta se queda con su ícono');
+}
+
+/**
+ * Comprueba en segundo plano (una vez por app y sesión) si su web se deja
+ * incrustar. Solo marca las que bloquean: lo que tú decidas a mano nunca se pisa.
+ */
+async function autoCheckFraming() {
+  for (const app of [...apps]) {
+    if (framingChecked.has(app.id)) continue;
+    framingChecked.add(app.id);
+    if (app.preview === false) continue;
+    const embeddable = await probeFraming(app.url);
+    if (embeddable === false && apps.some((a) => a.id === app.id)) setPreview(app.id, false);
+  }
 }
 
 function removeApp(id) {
@@ -244,6 +314,7 @@ function openEditor(app = null) {
   form.elements.url.value = app?.url || '';
   form.elements.emoji.value = app?.emoji || '';
   form.elements.emoji.placeholder = DEFAULT_EMOJI;
+  form.elements.preview.checked = app ? app.preview !== false : true;
   setAccent(app?.accent || randomAccent());
 
   openModal(els.editorModal);
@@ -267,14 +338,18 @@ function onEditorSubmit(event) {
   const url = normalizeUrl(form.elements.url.value);
   const emoji = form.elements.emoji.value.trim() || DEFAULT_EMOJI;
   const accent = els.accentText.value.trim();
+  const preview = form.elements.preview.checked;
 
   if (!name) return editorError('Ponle un nombre a tu app.');
   if (!url) return editorError('Ese link no parece válido. Ejemplo: https://mi-app.netlify.app');
 
   const wasEditing = Boolean(editingId);
-  upsertApp({ name, url, emoji, accent });
+  const app = upsertApp({ name, url, emoji, accent, preview });
   closeEditor();
   showToast(wasEditing ? 'App actualizada ✓' : 'App agregada a tu cartera 🎉');
+  // Comprobación en segundo plano: si la web bloquea los iframes, la tarjeta
+  // se queda con su ícono (y avisamos al usuario).
+  if (app && preview) verifyFraming(app);
 }
 
 function confirmDelete(app) {
@@ -309,6 +384,20 @@ function finishProgress() {
   setTimeout(() => setProgress(0), 600);
 }
 
+/** Muestra el aviso de "esta app no se deja mostrar aquí". */
+function showViewerBlocked() {
+  if (!viewerOpen) return;
+  els.viewerLoader.classList.add('is-hidden');
+  els.viewerBlocked.hidden = false;
+  finishProgress();
+}
+
+/** Vigilante: si la web no aparece en VIEWER_TIMEOUT, damos la carga por bloqueada. */
+function watchViewerLoad() {
+  clearTimeout(viewerTimer);
+  viewerTimer = setTimeout(showViewerBlocked, VIEWER_TIMEOUT);
+}
+
 function openViewer(app) {
   if (!app || !app.url) return;
 
@@ -326,15 +415,14 @@ function openViewer(app) {
   document.body.classList.add('viewer-open');
   nextFrame(() => els.viewer.classList.add('is-open'));
 
-  els.viewerFrame.src = app.url;
-
-  clearTimeout(viewerTimer);
-  viewerTimer = setTimeout(() => {
-    if (!viewerOpen) return;
-    els.viewerLoader.classList.add('is-hidden');
-    els.viewerBlocked.hidden = false;
-    finishProgress();
-  }, VIEWER_TIMEOUT);
+  if (app.preview === false) {
+    // Sabemos que esa web no permite iframes: lo decimos ya, sin esperar en vano.
+    els.viewerFrame.src = 'about:blank';
+    showViewerBlocked();
+  } else {
+    els.viewerFrame.src = app.url;
+    watchViewerLoad();
+  }
 
   history.pushState({ walletViewer: true }, '', `#app=${encodeURIComponent(app.id)}`);
 }
@@ -366,27 +454,60 @@ function closeViewer(fromPopstate = false) {
 
 function reloadViewer() {
   if (!viewerOpen || !viewerApp) return;
+  const app = viewerApp;
   els.viewerLoader.classList.remove('is-hidden');
   els.viewerBlocked.hidden = true;
   startProgress();
+
+  if (app.preview === false) {
+    // Ya sabíamos que bloqueaba el iframe: antes de reintentar, comprobamos si la
+    // web ya se deja incrustar (así vuelve sola la vista previa si la arreglaste).
+    recheckFraming(app);
+    return;
+  }
+
   // Forzar recarga reasignando el src.
   els.viewerFrame.src = 'about:blank';
   setTimeout(() => {
     if (viewerOpen && viewerApp) els.viewerFrame.src = viewerApp.url;
   }, 40);
-  clearTimeout(viewerTimer);
-  viewerTimer = setTimeout(() => {
-    if (!viewerOpen) return;
-    els.viewerLoader.classList.add('is-hidden');
-    els.viewerBlocked.hidden = false;
-    finishProgress();
-  }, VIEWER_TIMEOUT);
+  watchViewerLoad();
+}
+
+/** Reintento inteligente: pregunta al servidor antes de esperar a un marco en blanco. */
+async function recheckFraming(app) {
+  const embeddable = await probeFraming(app.url);
+  if (!viewerOpen || viewerApp?.id !== app.id) return;
+
+  if (embeddable === false) {
+    setPreview(app.id, false);
+    showViewerBlocked();
+    return;
+  }
+
+  // Permitida (o sin poder comprobarlo): probamos el iframe otra vez.
+  setPreview(app.id, true);
+  viewerApp = apps.find((a) => a.id === app.id) || viewerApp;
+  els.viewerFrame.src = 'about:blank';
+  setTimeout(() => {
+    if (viewerOpen && viewerApp) els.viewerFrame.src = viewerApp.url;
+  }, 40);
+  watchViewerLoad();
+}
+
+/** Abre una URL en una pestaña nueva (funciona siempre: el bloqueo XFO solo aplica a iframes). */
+function openUrlInNewTab(url) {
+  if (!url) return;
+  window.open(url, '_blank', 'noopener,noreferrer');
 }
 
 function openExternally() {
-  const url = viewerApp?.url;
-  if (!url) return;
-  window.open(url, '_blank', 'noopener,noreferrer');
+  openUrlInNewTab(viewerApp?.url);
+}
+
+/** Abrir desde la tarjeta, sin pasar por el visor. */
+function openAppExternally(app) {
+  openUrlInNewTab(app?.url);
 }
 
 function toggleFullscreen() {
@@ -571,6 +692,7 @@ async function init() {
 
   renderWallet();
   registerServiceWorker();
+  autoCheckFraming();
 
   const params = new URLSearchParams(location.search);
   if (params.get('action') === 'add') setTimeout(() => openEditor(), 350);
