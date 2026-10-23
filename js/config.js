@@ -10,9 +10,9 @@ export const DEFAULT_EMOJI = '📱';
 
 /** Paleta de acentos sugeridos para las tarjetas. */
 export const ACCENTS = [
-  '#6366f1', '#8b5cf6', '#a855f7', '#ec4899',
-  '#ef4444', '#f59e0b', '#10b981', '#14b8a6',
-  '#06b6d4', '#3b82f6', '#f97316', '#64748b',
+  '#a1a1aa', '#d4d4d8', '#71717a', '#a8a29e',
+  '#94a3b8', '#8fa3b8', '#8da399', '#a3a38a',
+  '#bba98f', '#b8978c', '#a993a8', '#9d97b8',
 ];
 
 /** Tamaño lógico en el que se renderiza el iframe de preview. */

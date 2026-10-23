@@ -4,7 +4,7 @@
  * Cachea el "app shell" (HTML/CSS/JS/iconos) para que la cartera abra sin conexión.
  * Las apps externas del iframe NO se cachean: viven en su propio origen.
  */
-const VERSION = 'appwallet-v2';
+const VERSION = 'appwallet-v3';
 const SHELL = [
   '/',
   '/index.html',

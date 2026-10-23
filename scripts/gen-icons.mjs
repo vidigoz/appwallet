@@ -79,8 +79,8 @@ function mix(a, b, t) {
   return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
 }
 
-const C0 = hexToRgb('#5b7cfa');
-const C1 = hexToRgb('#a855f7');
+const C0 = hexToRgb('#1c1c1f');
+const C1 = hexToRgb('#0b0b0c');
 
 /** Color (RGBA, canal alfa 0..1) de un punto en coordenadas 0..1. */
 function shade(x, y, radius) {
@@ -108,15 +108,15 @@ function shade(x, y, radius) {
   if (sdRoundRect(x, y, 0.17, 0.29, 0.83, 0.71, 0.05) <= 0) over([255, 255, 255], 0.96);
 
   // 3. Chip.
-  if (sdRoundRect(x, y, 0.245, 0.355, 0.375, 0.485, 0.022) <= 0) over(hexToRgb('#5b6cff'), 1);
+  if (sdRoundRect(x, y, 0.245, 0.355, 0.375, 0.485, 0.022) <= 0) over(hexToRgb('#0b0b0c'), 1);
 
   // 4. Franja (número de tarjeta) y línea secundaria.
-  if (sdRoundRect(x, y, 0.245, 0.55, 0.755, 0.61, 0.03) <= 0) over(hexToRgb('#bcc6ff'), 0.95);
-  if (sdRoundRect(x, y, 0.245, 0.635, 0.6, 0.675, 0.02) <= 0) over(hexToRgb('#d5dbff'), 0.7);
+  if (sdRoundRect(x, y, 0.245, 0.55, 0.755, 0.61, 0.03) <= 0) over(hexToRgb('#c4c4c8'), 0.95);
+  if (sdRoundRect(x, y, 0.245, 0.635, 0.6, 0.675, 0.02) <= 0) over(hexToRgb('#dcdce0'), 0.7);
 
   // 5. Puntos decorativos junto al chip.
   for (const cx of [0.46, 0.55, 0.64]) {
-    if (Math.hypot(x - cx, y - 0.42) <= 0.019) over(hexToRgb('#8f9dff'), 0.85);
+    if (Math.hypot(x - cx, y - 0.42) <= 0.019) over(hexToRgb('#8a8a90'), 0.85);
   }
 
   return [r, g, b, a];

@@ -23,7 +23,7 @@ function testPure() {
 
   const a = makeApp({ name: ' Hola ', url: 'hola.netlify.app', accent: '#ABCDEF', emoji: '🚀' });
   check('makeApp sanea el registro', a.name === 'Hola' && a.url === 'https://hola.netlify.app/' && a.accent === '#abcdef' && a.emoji === '🚀');
-  check('makeApp aplica acento por defecto', makeApp({ name: 'x', url: 'x.netlify.app', accent: 'rojo' }).accent === '#6366f1');
+  check('makeApp aplica acento por defecto', makeApp({ name: 'x', url: 'x.netlify.app', accent: 'rojo' }).accent === '#a1a1aa');
   check('makeApp genera id y fecha', Boolean(a.id) && Number.isFinite(a.createdAt));
   check(
     'makeApp activa la vista previa por defecto',

@@ -289,7 +289,7 @@ function buildSwatches() {
 }
 
 function setAccent(color) {
-  const hex = /^#[0-9a-f]{6}$/i.test(color || '') ? color.toLowerCase() : '#6366f1';
+  const hex = /^#[0-9a-f]{6}$/i.test(color || '') ? color.toLowerCase() : '#a1a1aa';
   els.accentInput.value = hex;
   els.accentText.value = hex;
   for (const btn of els.swatches.children) {

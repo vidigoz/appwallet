@@ -40,7 +40,7 @@ export function makeApp(data) {
     id: data?.id || uid(),
     name: String(data?.name || 'App').trim().slice(0, 48),
     url: normalizeUrl(data?.url),
-    accent: /^#[0-9a-f]{6}$/.test(accent) ? accent : '#6366f1',
+    accent: /^#[0-9a-f]{6}$/.test(accent) ? accent : '#a1a1aa',
     emoji: String(data?.emoji || DEFAULT_EMOJI).trim().slice(0, 4) || DEFAULT_EMOJI,
     // false = esa web no permite mostrarse dentro de un iframe (X-Frame-Options o
     // CSP frame-ancestors). En ese caso la tarjeta se queda con su ícono en vez
