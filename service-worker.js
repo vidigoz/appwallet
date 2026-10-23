@@ -4,7 +4,7 @@
  * Cachea el "app shell" (HTML/CSS/JS/iconos) para que la cartera abra sin conexión.
  * Las apps externas del iframe NO se cachean: viven en su propio origen.
  */
-const VERSION = 'appwallet-v3';
+const VERSION = 'appwallet-v4';
 const SHELL = [
   '/',
   '/index.html',
@@ -25,7 +25,11 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches
       .open(VERSION)
-      .then((cache) => cache.addAll(SHELL).catch(() => undefined))
+      // cache: 'reload' salta la caché HTTP del navegador: si no, una versión
+      // nueva del SW podría guardar el CSS/íconos viejos que ya tenía el navegador.
+      .then((cache) =>
+        cache.addAll(SHELL.map((url) => new Request(url, { cache: 'reload' }))).catch(() => undefined)
+      )
       .then(() => self.skipWaiting())
   );
 });
@@ -66,7 +70,7 @@ self.addEventListener('fetch', (event) => {
   // Resto de assets propios: cache primero, revalidando en segundo plano.
   event.respondWith(
     caches.match(request).then((cached) => {
-      const network = fetch(request)
+      const network = fetch(request, { cache: 'no-cache' })
         .then((response) => {
           if (response && response.status === 200 && response.type === 'basic') {
             const copy = response.clone();
